@@ -1,4 +1,4 @@
-# Meal Planner
+# Hungry Panda
 
 A mobile-first meal planning app for families.
 

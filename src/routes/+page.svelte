@@ -7,7 +7,7 @@
 </script>
 
 <svelte:head>
-	<title>Meal Planner</title>
+	<title>Hungry Panda</title>
 	<meta name="description" content="Plan your family's meals for the week" />
 </svelte:head>
 

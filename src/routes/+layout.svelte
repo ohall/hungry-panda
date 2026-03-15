@@ -5,7 +5,7 @@
 
 <div class="app">
 	<nav class="nav">
-		<a href="/" class="logo">Meal Planner</a>
+		<a href="/" class="logo">Hungry Panda</a>
 		<div class="nav-links">
 			<a href="/">Plan</a>
 			<a href="/shopping">Shopping</a>

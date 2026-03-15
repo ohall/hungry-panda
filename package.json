@@ -1,5 +1,5 @@
 {
-	"name": "meal-planner",
+	"name": "hungry-panda",
 	"version": "0.0.1",
 	"private": true,
 	"scripts": {
@@ -12,6 +12,7 @@
 		"@sveltejs/kit": "^2.0.0",
 		"@sveltejs/vite-plugin-svelte": "^4.0.0",
 		"svelte": "^5.0.0",
+		"vercel": "^50.32.5",
 		"vite": "^5.0.0"
 	},
 	"type": "module",

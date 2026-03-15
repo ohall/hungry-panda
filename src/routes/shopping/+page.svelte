@@ -13,7 +13,7 @@
 </script>
 
 <svelte:head>
-	<title>Shopping List | Meal Planner</title>
+	<title>Shopping List | Hungry Panda</title>
 </svelte:head>
 
 <section>
