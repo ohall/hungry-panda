@@ -9,6 +9,7 @@
 		<div class="nav-links">
 			<a href="/">Plan</a>
 			<a href="/shopping">Shopping</a>
+			<a href="/settings">Settings</a>
 		</div>
 	</nav>
 	<main>
