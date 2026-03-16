@@ -13,7 +13,18 @@
 			onClose();
 		}
 	}
-	
+
+	function handleBackdropKeydown(event: KeyboardEvent) {
+		if (event.target !== event.currentTarget) {
+			return;
+		}
+
+		if (event.key === 'Enter' || event.key === ' ') {
+			event.preventDefault();
+			onClose();
+		}
+	}
+
 	function handleKeydown(event: KeyboardEvent) {
 		if (isOpen && event.key === 'Escape') {
 			onClose();
@@ -24,7 +35,14 @@
 <svelte:window onkeydown={handleKeydown} />
 
 {#if isOpen}
-	<div class="modal-backdrop" onclick={handleBackdropClick}>
+	<div
+		class="modal-backdrop"
+		role="button"
+		tabindex="0"
+		aria-label="Close modal"
+		onclick={handleBackdropClick}
+		onkeydown={handleBackdropKeydown}
+	>
 		<div class="modal" role="dialog" aria-modal="true" aria-labelledby="modal-title">
 			<div class="modal-header">
 				<h2 id="modal-title">{title}</h2>
