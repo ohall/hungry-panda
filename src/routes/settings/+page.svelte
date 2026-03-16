@@ -203,7 +203,7 @@
 						rows="6"
 						bind:value={settings.notes}
 						placeholder="Anything else the model should know about your household."
-					/>
+					></textarea>
 				</div>
 
 				<button class="save-btn" type="button" disabled={saving} onclick={saveSettings}>
