@@ -57,6 +57,15 @@ Copy `.env.example` to `.env` and fill in:
 - Recipe favorites
 - ShopRite cart integration
 
+## Workflow (CRITICAL)
+
+**Always pull latest changes before working:**
+```bash
+git pull origin master
+```
+
+Oakley modifies this repo from multiple locations. Starting work without pulling first = merge conflicts and sadness.
+
 ## Agent Notes
 
 - Use Svelte 5 runes (`$state`, `$derived`, `$effect`) — not legacy reactive statements
