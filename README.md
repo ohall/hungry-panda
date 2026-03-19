@@ -8,6 +8,7 @@ A mobile-first meal planning app for families.
 - Recipe suggestion pipeline that merges:
   - OpenRouter-generated meal ideas
   - saved Supabase recipes that have not been planned recently
+- Background prefetching of recipe suggestions on page load for a faster planner modal
 - Recipe feedback controls to favorite or dislike suggestions
 - Settings screen for default recipe-prompt ingredients and constraints
 

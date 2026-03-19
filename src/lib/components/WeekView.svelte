@@ -14,6 +14,9 @@
 	let promptPreview = $state('');
 	let loadingSuggestions = $state(false);
 	let suggestionError = $state('');
+	let suggestionCache = $state<Record<number, RecipeSuggestionsResponse>>({});
+	let prefetchedDays = $state<Record<number, boolean>>({});
+	let hasInitialized = $state(false);
 	
 	let selectedDayName = $derived(
 		selectedDayIndex !== null ? days[selectedDayIndex] : ''
@@ -22,7 +25,25 @@
 	function getMealNameForDay(dayIndex: number): string | undefined {
 		return selectedMeals[dayIndex]?.recipeName;
 	}
-	
+
+	function applySuggestionPayload(payload: RecipeSuggestionsResponse) {
+		savedRecipes = payload.savedRecipes;
+		generatedRecipes = payload.generatedRecipes;
+		promptPreview = payload.promptPreview;
+	}
+
+	async function fetchSuggestionPayload(dayIndex: number) {
+		const response = await fetch(`/api/recipes/suggestions?dayName=${encodeURIComponent(days[dayIndex])}`);
+		if (!response.ok) {
+			throw new Error('Unable to load recipes');
+		}
+
+		const payload = (await response.json()) as RecipeSuggestionsResponse;
+		suggestionCache[dayIndex] = payload;
+		prefetchedDays[dayIndex] = true;
+		return payload;
+	}
+
 	async function loadAssignments() {
 		const response = await fetch('/api/meal-assignments');
 		if (!response.ok) {
@@ -39,23 +60,35 @@
 		);
 	}
 
-	async function loadSuggestions(dayIndex: number) {
+	async function loadSuggestions(dayIndex: number, forceRefresh = false) {
 		loadingSuggestions = true;
 		suggestionError = '';
 		try {
-			const response = await fetch(`/api/recipes/suggestions?dayName=${encodeURIComponent(days[dayIndex])}`);
-			if (!response.ok) {
-				throw new Error('Unable to load recipes');
+			if (!forceRefresh && suggestionCache[dayIndex]) {
+				applySuggestionPayload(suggestionCache[dayIndex]);
+				return;
 			}
 
-			const payload = (await response.json()) as RecipeSuggestionsResponse;
-			savedRecipes = payload.savedRecipes;
-			generatedRecipes = payload.generatedRecipes;
-			promptPreview = payload.promptPreview;
+			const payload = await fetchSuggestionPayload(dayIndex);
+			applySuggestionPayload(payload);
 		} catch (error) {
 			suggestionError = error instanceof Error ? error.message : 'Unable to load suggestions';
 		} finally {
 			loadingSuggestions = false;
+		}
+	}
+
+	async function preloadSuggestions() {
+		for (const [dayIndex, dayName] of days.entries()) {
+			if (prefetchedDays[dayIndex]) {
+				continue;
+			}
+
+			try {
+				await fetchSuggestionPayload(dayIndex);
+			} catch (error) {
+				console.error(`Failed to prefetch suggestions for ${dayName}`, error);
+			}
 		}
 	}
 
@@ -118,12 +151,18 @@
 
 	async function handleGenerateSuggestions() {
 		if (selectedDayIndex !== null) {
-			await loadSuggestions(selectedDayIndex);
+			await loadSuggestions(selectedDayIndex, true);
 		}
 	}
 
 	$effect(() => {
+		if (hasInitialized) {
+			return;
+		}
+
+		hasInitialized = true;
 		loadAssignments();
+		preloadSuggestions();
 	});
 </script>
 
