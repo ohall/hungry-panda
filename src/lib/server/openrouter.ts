@@ -1,4 +1,5 @@
 import type { PromptSettings, RecipeSuggestion } from '$lib/types';
+import { env } from '$env/dynamic/private';
 
 const openRouterUrl = 'https://openrouter.ai/api/v1/chat/completions';
 
@@ -26,93 +27,105 @@ export function buildRecipePrompt(settings: PromptSettings, dayName: string) {
 }
 
 export async function generateRecipeIdeas(settings: PromptSettings, dayName: string) {
-	const apiKey = process.env.OPENROUTER_API_KEY;
+	const apiKey = env.OPENROUTER_API_KEY;
 	if (!apiKey) {
+		console.warn('[recipes] OPENROUTER_API_KEY missing; generated suggestions disabled');
 		return fallbackIdeas();
 	}
 
-	const model = process.env.OPENROUTER_MODEL ?? 'openai/gpt-4o-mini';
+	const model = env.OPENROUTER_MODEL ?? 'openai/gpt-4o-mini';
 	const prompt = buildRecipePrompt(settings, dayName);
 
-	const response = await fetch(openRouterUrl, {
-		method: 'POST',
-		headers: {
-			Authorization: `Bearer ${apiKey}`,
-			'Content-Type': 'application/json',
-			'HTTP-Referer': process.env.OPENROUTER_APP_URL ?? 'http://localhost:5173',
-			'X-Title': process.env.OPENROUTER_APP_NAME ?? 'Hungry Panda'
-		},
-		body: JSON.stringify({
-			model,
-			messages: [
-				{
-					role: 'system',
-					content:
-						'You generate realistic family dinner ideas. Return only valid JSON that matches the requested schema.'
-				},
-				{
-					role: 'user',
-					content: prompt
-				}
-			],
-			response_format: {
-				type: 'json_schema',
-				json_schema: {
-					name: 'recipe_suggestions',
-					strict: true,
-					schema: {
-						type: 'object',
-						properties: {
-							recipes: {
-								type: 'array',
-								items: {
-									type: 'object',
-									properties: {
-										name: { type: 'string' },
-										description: { type: 'string' },
-										prep_time: { type: 'number' },
-										cook_time: { type: 'number' },
-										servings: { type: 'number' },
-										ingredients: {
-											type: 'array',
-											items: {
-												type: 'object',
-												properties: {
-													name: { type: 'string' },
-													amount: { type: 'string' },
-													unit: { type: 'string' }
-												},
-												required: ['name', 'amount', 'unit'],
-												additionalProperties: false
+	let response: Response;
+	try {
+		response = await fetch(openRouterUrl, {
+			method: 'POST',
+			headers: {
+				Authorization: `Bearer ${apiKey}`,
+				'Content-Type': 'application/json',
+				'HTTP-Referer': env.OPENROUTER_APP_URL ?? 'http://localhost:5173',
+				'X-Title': env.OPENROUTER_APP_NAME ?? 'Hungry Panda'
+			},
+			body: JSON.stringify({
+				model,
+				messages: [
+					{
+						role: 'system',
+						content:
+							'You generate realistic family dinner ideas. Return only valid JSON that matches the requested schema.'
+					},
+					{
+						role: 'user',
+						content: prompt
+					}
+				],
+				response_format: {
+					type: 'json_schema',
+					json_schema: {
+						name: 'recipe_suggestions',
+						strict: true,
+						schema: {
+							type: 'object',
+							properties: {
+								recipes: {
+									type: 'array',
+									items: {
+										type: 'object',
+										properties: {
+											name: { type: 'string' },
+											description: { type: 'string' },
+											prep_time: { type: 'number' },
+											cook_time: { type: 'number' },
+											servings: { type: 'number' },
+											ingredients: {
+												type: 'array',
+												items: {
+													type: 'object',
+													properties: {
+														name: { type: 'string' },
+														amount: { type: 'string' },
+														unit: { type: 'string' }
+													},
+													required: ['name', 'amount', 'unit'],
+													additionalProperties: false
+												}
 											}
-										}
-									},
-									required: ['name', 'description', 'prep_time', 'cook_time', 'servings', 'ingredients'],
-									additionalProperties: false
+										},
+										required: ['name', 'description', 'prep_time', 'cook_time', 'servings', 'ingredients'],
+										additionalProperties: false
+									}
 								}
-							}
-						},
-						required: ['recipes'],
-						additionalProperties: false
+							},
+							required: ['recipes'],
+							additionalProperties: false
+						}
 					}
 				}
-			}
-		})
-	});
+			})
+		});
+	} catch (error) {
+		console.error('[recipes] OpenRouter request failed', error);
+		return fallbackIdeas();
+	}
 
 	if (!response.ok) {
+		console.warn(`[recipes] OpenRouter returned ${response.status} ${response.statusText}`);
 		return fallbackIdeas();
 	}
 
 	const payload = await response.json();
 	const rawContent = payload?.choices?.[0]?.message?.content;
 	if (typeof rawContent !== 'string') {
+		console.warn('[recipes] OpenRouter response missing message content');
 		return fallbackIdeas();
 	}
 
 	try {
 		const parsed = JSON.parse(stripCodeFences(rawContent));
 		const recipes = Array.isArray(parsed?.recipes) ? parsed.recipes : [];
+		if (recipes.length === 0) {
+			console.warn('[recipes] OpenRouter returned zero recipes in parsed payload');
+		}
 		return recipes.map((recipe: Record<string, unknown>, index: number) => ({
 			id: `generated-${dayName.toLowerCase()}-${index + 1}-${String(recipe.name ?? 'idea')
 				.toLowerCase()
@@ -132,7 +145,8 @@ export async function generateRecipeIdeas(settings: PromptSettings, dayName: str
 			is_favorite: false,
 			source: 'generated' as const
 		}));
-	} catch {
+	} catch (error) {
+		console.error('[recipes] Failed to parse OpenRouter JSON payload', error);
 		return fallbackIdeas();
 	}
 }

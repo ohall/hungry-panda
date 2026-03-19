@@ -17,12 +17,21 @@ export const GET: RequestHandler = async ({ url }) => {
 		generateRecipeIdeas(settings, dayName)
 	]);
 	const combinedSavedRecipes = mergeRecipeSuggestions(favoriteRecipes, savedRecipes).slice(0, 8);
+	const combinedRecipes = mergeRecipeSuggestions(combinedSavedRecipes, generatedRecipes);
+	if (combinedRecipes.length === 0) {
+		console.warn(`[recipes] Empty suggestion pool for "${dayName}"`, {
+			householdId: settings.householdId,
+			savedCount: combinedSavedRecipes.length,
+			favoriteCount: favoriteRecipes.length,
+			generatedCount: generatedRecipes.length
+		});
+	}
 
 	return json({
 		dayName,
 		promptPreview: buildRecipePrompt(settings, dayName),
 		savedRecipes: combinedSavedRecipes,
 		generatedRecipes,
-		combinedRecipes: mergeRecipeSuggestions(combinedSavedRecipes, generatedRecipes)
+		combinedRecipes
 	});
 };
