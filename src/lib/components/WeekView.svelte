@@ -15,7 +15,6 @@
 	let loadingSuggestions = $state(false);
 	let suggestionError = $state('');
 	let suggestionCache = $state<Record<number, RecipeSuggestionsResponse>>({});
-	let prefetchedDays = $state<Record<number, boolean>>({});
 	let hasInitialized = $state(false);
 	
 	let selectedDayName = $derived(
@@ -33,15 +32,22 @@
 	}
 
 	async function fetchSuggestionPayload(dayIndex: number) {
-		const response = await fetch(`/api/recipes/suggestions?dayName=${encodeURIComponent(days[dayIndex])}`);
+		const response = await fetch(
+			`/api/recipes/suggestions?dayName=${encodeURIComponent(days[dayIndex] ?? 'This week')}`
+		);
 		if (!response.ok) {
 			throw new Error('Unable to load recipes');
 		}
 
-		const payload = (await response.json()) as RecipeSuggestionsResponse;
-		suggestionCache[dayIndex] = payload;
-		prefetchedDays[dayIndex] = true;
-		return payload;
+		return (await response.json()) as RecipeSuggestionsResponse;
+	}
+
+	function cachePoolForAllDays(payload: RecipeSuggestionsResponse) {
+		const nextCache: Record<number, RecipeSuggestionsResponse> = {};
+		for (const [dayIndex] of days.entries()) {
+			nextCache[dayIndex] = payload;
+		}
+		suggestionCache = nextCache;
 	}
 
 	async function loadAssignments() {
@@ -69,7 +75,8 @@
 				return;
 			}
 
-			const payload = await fetchSuggestionPayload(dayIndex);
+			const payload = await fetchSuggestionPayload(0);
+			cachePoolForAllDays(payload);
 			applySuggestionPayload(payload);
 		} catch (error) {
 			suggestionError = error instanceof Error ? error.message : 'Unable to load suggestions';
@@ -79,16 +86,15 @@
 	}
 
 	async function preloadSuggestions() {
-		for (const [dayIndex, dayName] of days.entries()) {
-			if (prefetchedDays[dayIndex]) {
-				continue;
-			}
+		if (suggestionCache[0]) {
+			return;
+		}
 
-			try {
-				await fetchSuggestionPayload(dayIndex);
-			} catch (error) {
-				console.error(`Failed to prefetch suggestions for ${dayName}`, error);
-			}
+		try {
+			const payload = await fetchSuggestionPayload(0);
+			cachePoolForAllDays(payload);
+		} catch {
+			// Keep the background fetch silent and show errors only when selecting a day.
 		}
 	}
 

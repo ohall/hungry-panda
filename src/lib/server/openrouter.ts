@@ -6,43 +6,8 @@ function stripCodeFences(value: string) {
 	return value.replace(/^```json\s*/i, '').replace(/^```\s*/i, '').replace(/\s*```$/, '');
 }
 
-function fallbackIdeas(settings: PromptSettings, dayName: string): RecipeSuggestion[] {
-	const cuisine = settings.cuisines[0] ?? 'family-friendly';
-	const pantry = settings.pantryStaples.slice(0, 2).join(' and ') || 'common pantry staples';
-	const avoidText = settings.avoidPrompts[0] ?? 'nothing too fussy';
-
-	return [
-		{
-			id: `generated-${dayName.toLowerCase()}-1`,
-			name: `${cuisine} Chicken Rice Bowls`,
-			description: `Built around ${pantry}, with a short prep window and ${avoidText} avoided.`,
-			ingredients: [
-				{ name: 'chicken breast', amount: '1.5', unit: 'lb' },
-				{ name: 'rice', amount: '2', unit: 'cups' },
-				{ name: 'broccoli', amount: '2', unit: 'cups' }
-			],
-			prep_time: 10,
-			cook_time: 20,
-			servings: settings.servings,
-			is_favorite: false,
-			source: 'generated'
-		},
-		{
-			id: `generated-${dayName.toLowerCase()}-2`,
-			name: `Sheet Pan Sausage ${dayName} Dinner`,
-			description: 'One-pan dinner with vegetables and quick cleanup.',
-			ingredients: [
-				{ name: 'chicken sausage', amount: '4', unit: 'links' },
-				{ name: 'potatoes', amount: '1.5', unit: 'lb' },
-				{ name: 'green beans', amount: '12', unit: 'oz' }
-			],
-			prep_time: 15,
-			cook_time: 25,
-			servings: settings.servings,
-			is_favorite: false,
-			source: 'generated'
-		}
-	];
+function fallbackIdeas(): RecipeSuggestion[] {
+	return [];
 }
 
 export function buildRecipePrompt(settings: PromptSettings, dayName: string) {
@@ -63,7 +28,7 @@ export function buildRecipePrompt(settings: PromptSettings, dayName: string) {
 export async function generateRecipeIdeas(settings: PromptSettings, dayName: string) {
 	const apiKey = process.env.OPENROUTER_API_KEY;
 	if (!apiKey) {
-		return fallbackIdeas(settings, dayName);
+		return fallbackIdeas();
 	}
 
 	const model = process.env.OPENROUTER_MODEL ?? 'openai/gpt-4o-mini';
@@ -136,13 +101,13 @@ export async function generateRecipeIdeas(settings: PromptSettings, dayName: str
 	});
 
 	if (!response.ok) {
-		return fallbackIdeas(settings, dayName);
+		return fallbackIdeas();
 	}
 
 	const payload = await response.json();
 	const rawContent = payload?.choices?.[0]?.message?.content;
 	if (typeof rawContent !== 'string') {
-		return fallbackIdeas(settings, dayName);
+		return fallbackIdeas();
 	}
 
 	try {
@@ -168,6 +133,6 @@ export async function generateRecipeIdeas(settings: PromptSettings, dayName: str
 			source: 'generated' as const
 		}));
 	} catch {
-		return fallbackIdeas(settings, dayName);
+		return fallbackIdeas();
 	}
 }

@@ -24,71 +24,7 @@ let fallbackSettings: PromptSettings = {
 	updatedAt: now()
 };
 
-let fallbackRecipes: Recipe[] = [
-	{
-		id: 'saved-1',
-		household_id: householdId,
-		name: 'Honey Garlic Chicken Bowls',
-		description: 'Chicken, broccoli, and rice with a fast sticky sauce.',
-		ingredients: [
-			{ name: 'chicken thighs', amount: '1.5', unit: 'lb', category: 'protein' },
-			{ name: 'broccoli', amount: '2', unit: 'cups', category: 'produce' },
-			{ name: 'rice', amount: '2', unit: 'cups', category: 'pantry' }
-		],
-		prep_time: 10,
-		cook_time: 20,
-		servings: 4,
-		is_favorite: true,
-		is_disliked: false,
-		last_planned_at: '2026-02-14T18:00:00.000Z',
-		times_served: 6,
-		source: 'saved',
-		created_at: now(),
-		updated_at: now()
-	},
-	{
-		id: 'saved-2',
-		household_id: householdId,
-		name: 'Turkey Taco Skillet',
-		description: 'Ground turkey, peppers, and black beans in one pan.',
-		ingredients: [
-			{ name: 'ground turkey', amount: '1', unit: 'lb', category: 'protein' },
-			{ name: 'bell peppers', amount: '2', unit: '', category: 'produce' },
-			{ name: 'black beans', amount: '1', unit: 'can', category: 'pantry' }
-		],
-		prep_time: 12,
-		cook_time: 18,
-		servings: 4,
-		is_favorite: false,
-		is_disliked: false,
-		last_planned_at: '2026-01-19T18:00:00.000Z',
-		times_served: 3,
-		source: 'saved',
-		created_at: now(),
-		updated_at: now()
-	},
-	{
-		id: 'saved-3',
-		household_id: householdId,
-		name: 'Sheet Pan Sausage and Veggies',
-		description: 'Roasted sausage, potatoes, and green beans.',
-		ingredients: [
-			{ name: 'chicken sausage', amount: '4', unit: 'links', category: 'protein' },
-			{ name: 'baby potatoes', amount: '1.5', unit: 'lb', category: 'produce' },
-			{ name: 'green beans', amount: '12', unit: 'oz', category: 'produce' }
-		],
-		prep_time: 15,
-		cook_time: 25,
-		servings: 4,
-		is_favorite: true,
-		is_disliked: false,
-		last_planned_at: '2025-12-02T18:00:00.000Z',
-		times_served: 4,
-		source: 'saved',
-		created_at: now(),
-		updated_at: now()
-	}
-];
+let fallbackRecipes: Recipe[] = [];
 
 let fallbackAssignments: MealAssignment[] = [];
 
@@ -192,7 +128,65 @@ export async function savePromptSettings(settings: PromptSettings): Promise<Prom
 
 export async function getSavedRecipeSuggestions(
 	activeHouseholdId = householdId,
-	limit = 3
+	limit = 6,
+	favoriteTarget = 2
+): Promise<RecipeSuggestion[]> {
+	if (hasSupabaseEnv && supabase) {
+		const favoriteLimit = Math.min(limit, Math.max(favoriteTarget, 0));
+		const [favoriteResult, additionalResult] = await Promise.all([
+			supabase
+				.from('recipes')
+				.select('*')
+				.eq('household_id', activeHouseholdId)
+				.eq('is_disliked', false)
+				.eq('is_favorite', true)
+				.order('last_planned_at', { ascending: true, nullsFirst: true })
+				.limit(favoriteLimit),
+			supabase
+				.from('recipes')
+				.select('*')
+				.eq('household_id', activeHouseholdId)
+				.eq('is_disliked', false)
+				.order('is_favorite', { ascending: false })
+				.order('last_planned_at', { ascending: true, nullsFirst: true })
+				.limit(Math.max(limit, favoriteLimit))
+		]);
+
+		const favorites = (favoriteResult.data ?? []).map((recipe) =>
+			normalizeRecipe({
+				...recipe,
+				ingredients: Array.isArray(recipe.ingredients) ? recipe.ingredients : [],
+				source: 'saved'
+			} as Recipe)
+		);
+		const additional = (additionalResult.data ?? []).map((recipe) =>
+			normalizeRecipe({
+				...recipe,
+				ingredients: Array.isArray(recipe.ingredients) ? recipe.ingredients : [],
+				source: 'saved'
+			} as Recipe)
+		);
+		const combined = dedupeRecipes([...favorites, ...additional]).slice(0, limit);
+		if (combined.length > 0) {
+			return combined;
+		}
+	}
+
+	const candidates = fallbackRecipes
+		.filter((recipe) => recipe.household_id === activeHouseholdId && !recipe.is_disliked)
+		.map(normalizeRecipe);
+
+	const favorites = sortSavedRecipes(candidates.filter((recipe) => recipe.is_favorite)).slice(
+		0,
+		Math.min(limit, Math.max(favoriteTarget, 0))
+	);
+	const additional = sortSavedRecipes(candidates);
+	return dedupeRecipes([...favorites, ...additional]).slice(0, limit);
+}
+
+export async function getFavoriteRecipeSuggestions(
+	activeHouseholdId = householdId,
+	limit = 2
 ): Promise<RecipeSuggestion[]> {
 	if (hasSupabaseEnv && supabase) {
 		const { data } = await supabase
@@ -200,7 +194,7 @@ export async function getSavedRecipeSuggestions(
 			.select('*')
 			.eq('household_id', activeHouseholdId)
 			.eq('is_disliked', false)
-			.order('is_favorite', { ascending: false })
+			.eq('is_favorite', true)
 			.order('last_planned_at', { ascending: true, nullsFirst: true })
 			.limit(limit);
 
@@ -215,11 +209,11 @@ export async function getSavedRecipeSuggestions(
 		}
 	}
 
-	const candidates = fallbackRecipes
-		.filter((recipe) => recipe.household_id === activeHouseholdId && !recipe.is_disliked)
-		.map(normalizeRecipe);
-
-	return sortSavedRecipes(candidates).slice(0, limit);
+	return sortSavedRecipes(
+		fallbackRecipes
+			.filter((recipe) => recipe.household_id === activeHouseholdId && !recipe.is_disliked && recipe.is_favorite)
+			.map(normalizeRecipe)
+	).slice(0, limit);
 }
 
 export async function saveRecipeFeedback(recipe: RecipeSuggestion, action: 'favorite' | 'dislike') {
