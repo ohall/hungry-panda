@@ -17,7 +17,7 @@
 	},
 	"type": "module",
 	"engines": {
-		"node": "20.x"
+		"node": "24.x"
 	},
 	"dependencies": {
 		"@supabase/supabase-js": "^2.99.1"
